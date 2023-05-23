@@ -57,7 +57,7 @@ class NewtonBT:
                 L = np.linalg.cholesky(hess_f)
                 z = np.linalg.solve(L, -grad_f)
                 dir = np.linalg.solve(L.T, z)                
-            except LinAlgError:
+            except np.linalg.LinAlgError:
                 dir = -grad_f
 
             t = 1
@@ -72,7 +72,8 @@ class NewtonBT:
 
         f = fn[0]     
 
-        return x, f, i 
+        return x, f, i
+     
 
 
 
