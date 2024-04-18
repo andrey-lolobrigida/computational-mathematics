@@ -1,4 +1,4 @@
-# Newton's method opmitization algorithm
+# Newton's method optimization algorithm
 # equipped with backtracking (satisfying Armijo conditions).
 # in case the Hessian at x is not PSD, it uses minus gradient as the descent direction 
 # 

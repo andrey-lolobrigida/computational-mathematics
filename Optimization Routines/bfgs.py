@@ -1,22 +1,23 @@
+# BFGS's method optimization algorithm
+# equipped with backtracking (satisfying Armijo conditions).
+# for benchmark purposes, we are using the Rosenbrock function as the objective function
 #
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
+# INPUT:
+# x0: initial point/guess
+# H0: initial approximation for the inverse Hessian
+# sigma: float in the interval (0,1) for the Armijo condition
+# tol: the maximum gap, or tolerance, of the stopping criteria
+# maxit: the maximum number of iterations
+# 
+# OUTPUT:
+# x: the approximate local minimizer
+# f: the function value at x
+# i: the number of iterations required to get to the solution
+    
 
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 class BFGS:
 
@@ -27,10 +28,11 @@ class BFGS:
         self.tol = tol
         self.maxit = maxit
 
+
     def objective_func(self, x):
         
         # DEFINE YOUR FUNCTION HERE.
-        # for example purposes, we are using the Rosenbrock function
+        # for benchmark purposes, we are using the Rosenbrock function
         # https://en.wikipedia.org/wiki/Rosenbrock_function
         
         f = (1 - x[0])**2 + 100*((x[1] - x[0]**2)**2)
@@ -42,64 +44,117 @@ class BFGS:
         
         return f, grad_f
     
-    def bfgs(self):
+    
+    def stopping_criteria(self, grad_f):
+        # we check if the euclidean of the 
+        # gradient of f at x is smaller than the tolerance.
+        # if that happens, it means we hit a critical point
+        # of the function and the algorithm stops        
+
+        norm_grad = np.linalg.norm(grad_f)
+        at_critical_point = False
+
+        if norm_grad < self.tol:
+            at_critical_point = True
+
+        return norm_grad, at_critical_point
+    
+    
+    def set_search_dir_and_stepsize(self, x, H, f, grad_f, norm_grad):
+        # setting up the search direction
+
+        search_direction = (-1)*np.dot(H, grad_f)            
+
+        # we find a stepsize that satisfies the Armijo condition
+        # using backtracking line search
+
+        stepsize = 1
+        eval_array = self.objective_func(x + stepsize*search_direction) 
+
+        while (eval_array[0] > f + stepsize*self.sigma*(norm_grad**2)):
+            stepsize = stepsize/2                
+            x_aux = x + stepsize*search_direction                             
+            eval_array = self.objective_func(x_aux)
+
+        return search_direction, stepsize, eval_array
+    
+    
+    def compute_inverse_hessian_approx(self, x, H, grad_f, search_direction, stepsize, eval_array):
+
+        # setting up some vectors that are used in the BFGS formula
+        s = stepsize*search_direction
+        y = eval_array[1] - grad_f
+        x = x + s            
+
+        # an implementation of the BFGS formula
+        ro_k = 1/np.dot(y, s)
+        y_reshape = y.reshape(1, -1)
+        s_reshape = s.reshape(1, -1)
+        rank1matrix_left = np.matmul(s_reshape.T, y_reshape)
+        rank1matrix_right = np.matmul(y_reshape.T, s_reshape)
+        rank1matrix_sum = np.matmul(s_reshape.T, s_reshape)           
+        left_term = (np.eye(2,2)- ro_k*rank1matrix_left)
+        right_term = (np.eye(2,2)- ro_k*rank1matrix_right)
+        sum_term = ro_k*rank1matrix_sum
+        left_mul = np.matmul(left_term, H)
+            
+        H = np.matmul(left_mul, right_term) + sum_term
+
+        return x, H
+    
+    
+    def bfgs_method(self):
 
         x = self.x0
-        H = self.H0        
+        H = self.H0
+
+        # the grad norms will be stored in this list
+        grad_norm_list = []        
 
         for i in range(0, self.maxit):
+            # we compute the functional value and the gradient at x
+
             (f, grad_f) = self.objective_func(x)
-            norm_grad = np.linalg.norm(grad_f)
+            norm_grad, at_critical_point = self.stopping_criteria(grad_f)
+            grad_norm_list.append(norm_grad)
 
-            if norm_grad < self.tol:
-                break
+            if at_critical_point == True:
+                break            
 
-            print('=================== H f x gradf =========')
-            print(H, self.H0, x, grad_f)
-            search_direction = (-1)*np.dot(H, grad_f)
-            print('=================== search dir =========')
-            print(search_direction)
+            search_direction, stepsize, eval_array = self.set_search_dir_and_stepsize(x, H, f, grad_f, norm_grad)
 
-            t = 1
-            fn = self.objective_func(x + t*search_direction) 
+            x, H = self.compute_inverse_hessian_approx(x, H, grad_f, search_direction, stepsize, eval_array)
+                       
 
-            while (fn[0] > f + t*self.sigma*(norm_grad**2)):
-                t = t/2                
-                xn = x + t*search_direction                             
-                fn = self.objective_func(xn)
+        f = eval_array[0]        
 
-            print('===================fn t gradfn=========')
-            print(fn)
-            print(t)
-            print(fn[1])
+        return x, f, i, grad_norm_list
+    
+    
+    def bfgs_benchmark(self):
 
-            s = t*search_direction
-            y = fn[1] - grad_f
-            x = x + s
+        x, f, i, grad_norm_list = self.bfgs_method()        
 
-            print('===================s y x=========')
-            print(s,y,x)
+        grad_norm_plot = plt.plot(np.arange(0, i+1), grad_norm_list)
 
-            # BFGS Formula
+        print('Global minima: ' + str(x))
+        print('Functional value at x: ' + str(f))
+        print('Converged in ' + str(i+1) + ' iterations.')
 
-            ro_k = 1/np.dot(y, s)
-            y_reshape = y.reshape(1, -1)
-            s_reshape = s.reshape(1, -1)
-            rank1matrix_left = np.matmul(s_reshape.T, y_reshape)
-            rank1matrix_right = np.matmul(y_reshape.T, s_reshape)
-            rank1matrix_sum = np.matmul(s_reshape.T, s_reshape)           
-            left_term = (np.eye(2,2)- ro_k*rank1matrix_left)
-            right_term = (np.eye(2,2)- ro_k*rank1matrix_right)
-            sum_term = ro_k*rank1matrix_sum
-            left_mul = np.matmul(left_term, H)
-            
-            H = np.matmul(left_mul, right_term) + sum_term
+        plt.title('BFGS')
+        plt.rc('axes', titlesize=22)        
+        plt.rc('legend', fontsize=14)
+        plt.yscale('log')
+        plt.xlabel('Iterations')
+        plt.ylabel('Gradient Norm')        
+        plt.grid()
+        plt.show()
 
-        print(H)
 
-        f = fn[0]
+    
+    
+    
 
-        return x, f, i
 
 
 
